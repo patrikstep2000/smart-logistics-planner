@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SmartLogistics.Core/SmartLogistics.Core.csproj" />
+    <Project Path="src/SmartLogistics.Web/SmartLogistics.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SmartLogistics.Tests/SmartLogistics.Tests.csproj" />
+  </Folder>
+</Solution>

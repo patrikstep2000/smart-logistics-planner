@@ -1,0 +1,154 @@
+@* Uređivanje ulaznih podataka. Svaka izmjena javlja roditelju (OnChanged) da ponovno pokrene solver. *@
+@using SmartLogistics.Core
+
+<p class="hint">Sve tablice se mogu uređivati – rješenje se preračunava nakon svake izmjene.</p>
+
+<div class="grid-2">
+    <div class="stack">
+        <section class="card">
+            <h2>Vozni park</h2>
+            <table class="edit">
+                <thead><tr><th>Oznaka</th><th>Naziv</th><th>Nosivost (kg)</th><th>Max strojeva</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var t in Data.Trucks)
+                    {
+                        <tr>
+                            <td><input @bind="t.Id" @bind:after="Changed" /></td>
+                            <td><input @bind="t.Name" @bind:after="Changed" /></td>
+                            <td><input type="number" min="1" step="100" @bind="t.MaxKg" @bind:after="Changed" /></td>
+                            <td><input type="number" min="1" step="1" @bind="t.MaxItems" @bind:after="Changed" /></td>
+                            <td><button class="icon-btn" title="Ukloni" @onclick="() => Remove(Data.Trucks, t)">×</button></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            <button class="add-btn" @onclick="AddTruck">+ Dodaj kamion</button>
+        </section>
+
+        <section class="card">
+            <h2>Strojevi</h2>
+            <table class="edit">
+                <thead><tr><th>Oznaka</th><th>Težina (kg)</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var m in Data.Machines)
+                    {
+                        <tr>
+                            <td><input @bind="m.Id" @bind:after="Changed" /></td>
+                            <td><input type="number" min="1" step="100" @bind="m.WeightKg" @bind:after="Changed" /></td>
+                            <td><button class="icon-btn" title="Ukloni" @onclick="() => Remove(Data.Machines, m)">×</button></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            <button class="add-btn" @onclick="AddMachine">+ Dodaj stroj</button>
+        </section>
+    </div>
+
+    <section class="card">
+        <h2>Lokacije (koordinate u km)</h2>
+        <table class="edit">
+            <thead><tr><th>Oznaka</th><th>Naziv</th><th>X</th><th>Y</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var l in Data.Locations)
+                {
+                    <tr>
+                        <td><input @bind="l.Id" @bind:after="Changed" /></td>
+                        <td><input @bind="l.Name" @bind:after="Changed" /></td>
+                        <td><input type="number" step="1" @bind="l.X" @bind:after="Changed" /></td>
+                        <td><input type="number" step="1" @bind="l.Y" @bind:after="Changed" /></td>
+                        <td><button class="icon-btn" title="Ukloni" @onclick="() => Remove(Data.Locations, l)">×</button></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        <button class="add-btn" @onclick="AddLocation">+ Dodaj lokaciju</button>
+    </section>
+</div>
+
+<section class="card">
+    <h2>Transportni nalozi</h2>
+    <table class="edit">
+        <thead><tr><th>Nalog</th><th>Stroj</th><th>Težina</th><th>Preuzimanje</th><th>Isporuka</th><th></th></tr></thead>
+        <tbody>
+            @foreach (var o in Data.Orders)
+            {
+                <tr>
+                    <td><input @bind="o.Id" @bind:after="Changed" /></td>
+                    <td>
+                        <select @bind="o.MachineId" @bind:after="Changed">
+                            <option value="">—</option>
+                            @foreach (var m in Data.Machines)
+                            {
+                                <option value="@m.Id">@m.Id</option>
+                            }
+                        </select>
+                    </td>
+                    <td class="muted">@(Data.Machines.FirstOrDefault(m => m.Id == o.MachineId)?.WeightKg.ToString() ?? "–") kg</td>
+                    <td>
+                        <select @bind="o.Pickup" @bind:after="Changed">
+                            <option value="">—</option>
+                            @foreach (var l in Data.Locations)
+                            {
+                                <option value="@l.Id">@l.Id</option>
+                            }
+                        </select>
+                    </td>
+                    <td>
+                        <select @bind="o.Delivery" @bind:after="Changed">
+                            <option value="">—</option>
+                            @foreach (var l in Data.Locations)
+                            {
+                                <option value="@l.Id">@l.Id</option>
+                            }
+                        </select>
+                    </td>
+                    <td><button class="icon-btn" title="Ukloni" @onclick="() => Remove(Data.Orders, o)">×</button></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    <button class="add-btn" @onclick="AddOrder">+ Dodaj nalog</button>
+</section>
+
+@code {
+    [Parameter, EditorRequired] public ProblemData Data { get; set; } = default!;
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private Task Changed() => OnChanged.InvokeAsync();
+
+    private Task Remove<T>(List<T> list, T item)
+    {
+        list.Remove(item);
+        return Changed();
+    }
+
+    private Task AddTruck()
+    {
+        Data.Trucks.Add(new TruckData { Id = $"T{Data.Trucks.Count + 1}", Name = $"Kamion {Data.Trucks.Count + 1}", MaxKg = 3500, MaxItems = 2 });
+        return Changed();
+    }
+
+    private Task AddMachine()
+    {
+        Data.Machines.Add(new MachineData { Id = $"M{Data.Machines.Count + 1:00}", WeightKg = 1000 });
+        return Changed();
+    }
+
+    private Task AddLocation()
+    {
+        Data.Locations.Add(new LocationData { Id = $"L{Data.Locations.Count}", Name = $"L{Data.Locations.Count}" });
+        return Changed();
+    }
+
+    private Task AddOrder()
+    {
+        Data.Orders.Add(new OrderData
+        {
+            Id = $"N{Data.Orders.Count + 1:00}",
+            MachineId = Data.Machines.FirstOrDefault()?.Id,
+            Pickup = Data.Locations.Skip(1).FirstOrDefault()?.Id,
+            Delivery = Data.Base,
+        });
+        return Changed();
+    }
+}

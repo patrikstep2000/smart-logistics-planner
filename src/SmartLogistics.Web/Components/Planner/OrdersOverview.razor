@@ -1,0 +1,29 @@
+@* Pregled naloga: koji kamion vozi koji nalog, ili je nalog neizvršen. *@
+@using SmartLogistics.Core
+
+<div class="table-wrap">
+    <table class="data">
+        <thead><tr><th>Nalog</th><th>Stroj</th><th class="num">Težina</th><th>Relacija</th><th>Kamion</th></tr></thead>
+        <tbody>
+            @foreach (var o in Problem.Orders)
+            {
+                var route = Plan.Routes.FirstOrDefault(r => r.Stops.Any(s => s.OrderId == o.Id));
+                <tr>
+                    <td><strong>@o.Id</strong></td>
+                    <td>@o.MachineId</td>
+                    <td class="num">@Problem.Weight(o) kg</td>
+                    <td>@o.Pickup → @o.Delivery</td>
+                    <td>
+                        @if (route is null) { <span class="status warn">neizvršen</span> }
+                        else { <span class="status ok">@route.Truck.Name</span> }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public Problem Problem { get; set; } = default!;
+    [Parameter, EditorRequired] public Plan Plan { get; set; } = default!;
+}

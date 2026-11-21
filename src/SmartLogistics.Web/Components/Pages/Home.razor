@@ -1,0 +1,251 @@
+﻿@page "/"
+@rendermode InteractiveServer
+@using SmartLogistics.Core
+@using SmartLogistics.Web.Components.Planner
+
+<PageTitle>Smart Logistics Planner</PageTitle>
+
+<div class="shell">
+    <aside class="sidebar">
+        <div class="brand">
+            <span class="brand-mark">UP</span>
+            <div><strong>Smart Logistics</strong><span>Planner</span></div>
+        </div>
+
+        <h2>Postavke</h2>
+        <label>
+            Radno vrijeme vozača (h)
+            <input type="number" min="0.5" max="24" step="0.5" @bind="_data.Settings.MaxShiftHours" @bind:after="Recalculate" />
+        </label>
+        <label>
+            Utovar / istovar (min po radnji)
+            <input type="number" min="0" step="5" @bind="_data.Settings.HandlingMin" @bind:after="Recalculate" />
+        </label>
+        <label>
+            Prosječna brzina (km/h)
+            <input type="number" min="1" step="5" @bind="_data.Settings.SpeedKmh" @bind:after="Recalculate" />
+        </label>
+        <button class="btn secondary" @onclick="Reset">↺ Vrati zadane podatke</button>
+    </aside>
+
+    <main class="main">
+        <header class="page-head">
+            <h1>Smart Logistics Planner</h1>
+            <p class="muted">Raspored prijevoza radnih strojeva – UP RENT</p>
+        </header>
+
+        <nav class="tabs" role="tablist">
+            <button class="@TabClass("result")" @onclick='() => _tab = "result"'>Rješenje</button>
+            <button class="@TabClass("input")" @onclick='() => _tab = "input"'>Ulazni podaci</button>
+        </nav>
+
+        @if (_tab == "input")
+        {
+            <InputEditor Data="_data" OnChanged="Recalculate" />
+        }
+        else if (_error is not null)
+        {
+            <div class="alert error">
+                <strong>Rješenje nije moguće izračunati.</strong> Ispravi podatke na kartici <em>Ulazni podaci</em>.
+                <pre>@_error</pre>
+            </div>
+        }
+        else if (_plan is not null && _problem is not null)
+        {
+            @foreach (var u in _plan.Unassigned)
+            {
+                <div class="alert warn"><strong>Nalog @u.OrderId nije moguće izvršiti.</strong> @u.Reason</div>
+            }
+            @if (_planErrors.Count > 0)
+            {
+                <div class="alert error"><strong>Plan krši ograničenja:</strong>
+                    <ul>@foreach (var e in _planErrors) { <li>@e</li> }</ul>
+                </div>
+            }
+            else
+            {
+                <div class="alert ok">
+                    ✓ @(_plan.Unassigned.Count > 0 ? "Izvršeni dio plana" : "Plan") zadovoljava sva ograničenja – nosivost,
+                    broj strojeva, preuzimanje prije isporuke istim kamionom, povratak u bazu i radno vrijeme
+                    (provjera: neovisni validator).
+                </div>
+            }
+
+            <section class="kpis">
+                <div class="kpi">
+                    <span class="kpi-label">Ukupna kilometraža</span>
+                    <span class="kpi-value">@Fmt.Km(_plan.TotalKm)</span>
+                </div>
+                <div class="kpi">
+                    <span class="kpi-label">Izvršeni nalozi</span>
+                    <span class="kpi-value">@_plan.OrdersDone / @_problem.Orders.Count</span>
+                </div>
+                @for (int i = 0; i < _plan.Routes.Count; i++)
+                {
+                    var r = _plan.Routes[i];
+                    <div class="kpi">
+                        <span class="kpi-label"><span class="swatch" style="background:@Fmt.TruckColor(i)"></span>@r.Truck.Name</span>
+                        <span class="kpi-value">@Fmt.Km(r.Km)</span>
+                        <span class="kpi-note">@r.OrdersDone naloga · radno vrijeme @Fmt.Clock(r.Minutes) h</span>
+                    </div>
+                }
+            </section>
+
+            <div class="grid-map">
+                <section class="card">
+                    <h2>Karta ruta</h2>
+                    <RouteMap Problem="_problem" Plan="_plan" />
+                </section>
+                <section class="card">
+                    <h2>Pregled naloga</h2>
+                    <OrdersOverview Problem="_problem" Plan="_plan" />
+                </section>
+            </div>
+
+            @for (int i = 0; i < _plan.Routes.Count; i++)
+            {
+                <RouteTable Route="_plan.Routes[i]" Color="@Fmt.TruckColor(i)" MaxShiftMin="_problem.Settings.MaxShiftMin" />
+            }
+
+            <section class="card">
+                <h2>Kontrola s Google OR-Tools</h2>
+                <p class="muted">
+                    Isti problem rješava neovisni heuristički solver, a njegovo rješenje provjerava isti validator.
+                    Egzaktni DP mora biti jednak ili bolji.
+                </p>
+                <button class="btn" disabled="@_orToolsRunning" @onclick="RunOrTools">
+                    @(_orToolsRunning ? "OR-Tools računa…" : "Pokreni usporedbu (≈5 s)")
+                </button>
+
+                @if (_orTools is not null)
+                {
+                    <div class="table-wrap">
+                        <table class="data compare">
+                            <thead>
+                                <tr>
+                                    <th>Solver</th><th class="num">Ukupno</th><th class="num">Nalozi</th>
+                                    @foreach (var r in _plan.Routes) { <th class="num">@r.Truck.Name</th> }
+                                    <th class="num">Vrijeme</th><th>Validator</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var (p, errs) in new[] { (_plan, _planErrors), (_orTools, _orToolsErrors) })
+                                {
+                                    <tr>
+                                        <td>@p.SolverName</td>
+                                        <td class="num">@Fmt.Km(p.TotalKm)</td>
+                                        <td class="num">@p.OrdersDone / @_problem.Orders.Count</td>
+                                        @foreach (var r in p.Routes) { <td class="num">@Fmt.Km(r.Km)</td> }
+                                        <td class="num">@p.ElapsedMs ms</td>
+                                        <td>@(errs.Count == 0 ? "✓ OK" : "✗ " + string.Join("; ", errs))</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="alert @CompareClass()">@CompareText()</div>
+                }
+            </section>
+
+            @if (_orTools is not null)
+            {
+                <h2 class="section-title">Raspored koji je složio OR-Tools</h2>
+                @foreach (var u in _orTools.Unassigned)
+                {
+                    <div class="alert warn"><strong>Nalog @u.OrderId nije izvršen.</strong> @u.Reason</div>
+                }
+                <div class="grid-map">
+                    <section class="card">
+                        <h2>Karta ruta (OR-Tools)</h2>
+                        <RouteMap Problem="_problem" Plan="_orTools" IdPrefix="ot" />
+                    </section>
+                    <section class="card">
+                        <h2>Pregled naloga (OR-Tools)</h2>
+                        <OrdersOverview Problem="_problem" Plan="_orTools" />
+                    </section>
+                </div>
+                @for (int i = 0; i < _orTools.Routes.Count; i++)
+                {
+                    <RouteTable Route="_orTools.Routes[i]" Color="@Fmt.TruckColor(i)" MaxShiftMin="_problem.Settings.MaxShiftMin" />
+                }
+            }
+
+            <p class="muted small">
+                Solver: @_plan.SolverName · @_plan.StatesExplored stanja · @_plan.ElapsedMs ms
+            </p>
+        }
+    </main>
+</div>
+
+@code {
+    private ProblemData _data = ProblemData.Load();
+    private Problem? _problem;
+    private Plan? _plan;
+    private List<string> _planErrors = [];
+    private string? _error;
+    private string _tab = "result";
+
+    private Plan? _orTools;
+    private List<string> _orToolsErrors = [];
+    private bool _orToolsRunning;
+
+    protected override void OnInitialized() => Recalculate();
+
+    /// <summary>Pretvori uređene podatke u Problem, pokreni solver i provjeri rješenje validatorom.</summary>
+    private void Recalculate()
+    {
+        _orTools = null;
+        _plan = null;
+        _error = null;
+        try
+        {
+            _problem = _data.ToProblem();
+            var inputErrors = _problem.InputErrors();
+            if (inputErrors.Count > 0)
+            {
+                _error = string.Join("\n", inputErrors);
+                return;
+            }
+            _plan = ExactSolver.Solve(_problem);
+            _planErrors = Validator.ValidatePlan(_problem, _plan);
+        }
+        catch (Exception ex) when (ex is InvalidDataException or InvalidOperationException)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private void Reset()
+    {
+        _data = ProblemData.Load();
+        Recalculate();
+    }
+
+    private async Task RunOrTools()
+    {
+        if (_problem is null) return;
+        _orToolsRunning = true;
+        var problem = _problem;
+        // Pokreće se u pozadinskoj niti da sučelje ostane responzivno.
+        _orTools = await Task.Run(() => OrToolsSolver.Solve(problem, TimeSpan.FromSeconds(5)));
+        _orToolsErrors = Validator.ValidatePlan(problem, _orTools);
+        _orToolsRunning = false;
+    }
+
+    private string TabClass(string tab) => tab == _tab ? "tab active" : "tab";
+
+    private (int, int) Key(Plan p) => (p.OrdersDone, -p.TotalDk);   // veće je bolje
+
+    private string CompareClass() =>
+        _orToolsErrors.Count > 0 || Key(_orTools!).CompareTo(Key(_plan!)) > 0 ? "error"
+        : Key(_orTools!) == Key(_plan!) ? "ok" : "info";
+
+    private string CompareText()
+    {
+        if (_orToolsErrors.Count > 0) return "OR-Tools rješenje krši ograničenja (vidi validator).";
+        int cmp = Key(_orTools!).CompareTo(Key(_plan!));
+        if (cmp == 0) return "✓ OR-Tools je neovisno pronašao isti rezultat kao egzaktni DP.";
+        if (cmp < 0) return $"OR-Tools je u vremenskom limitu našao lošije rješenje (+{(_orTools!.TotalDk - _plan!.TotalDk) / 10.0:0.0} km); DP je egzaktan.";
+        return "OR-Tools je našao bolje ispravno rješenje – egzaktni solver ima grešku!";
+    }
+}

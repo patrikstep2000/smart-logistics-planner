@@ -1,0 +1,48 @@
+{
+  "base": "L0",
+  "settings": {
+    "speed_kmh": 60,
+    "handling_min": 20,
+    "max_shift_hours": 9
+  },
+  "trucks": [
+    {"id": "A", "name": "Kamion A", "max_kg": 3500, "max_items": 2},
+    {"id": "B", "name": "Kamion B", "max_kg": 10000, "max_items": 3}
+  ],
+  "machines": [
+    {"id": "M01", "weight_kg": 800},
+    {"id": "M02", "weight_kg": 1300},
+    {"id": "M03", "weight_kg": 1800},
+    {"id": "M04", "weight_kg": 2400},
+    {"id": "M05", "weight_kg": 3100},
+    {"id": "M06", "weight_kg": 3900},
+    {"id": "M07", "weight_kg": 4800},
+    {"id": "M08", "weight_kg": 6100},
+    {"id": "M09", "weight_kg": 7500},
+    {"id": "M10", "weight_kg": 9400}
+  ],
+  "locations": [
+    {"id": "L0", "name": "Baza", "x": 0, "y": 0},
+    {"id": "L1", "name": "L1", "x": 3, "y": 8},
+    {"id": "L2", "name": "L2", "x": 10, "y": 11},
+    {"id": "L3", "name": "L3", "x": 17, "y": 9},
+    {"id": "L4", "name": "L4", "x": 9, "y": -6},
+    {"id": "L5", "name": "L5", "x": 26, "y": 3},
+    {"id": "L6", "name": "L6", "x": -7, "y": 13},
+    {"id": "L7", "name": "L7", "x": 20, "y": -8},
+    {"id": "L8", "name": "L8", "x": 23, "y": 15},
+    {"id": "L9", "name": "L9", "x": -8, "y": -5}
+  ],
+  "orders": [
+    {"id": "N01", "machine_id": "M01", "pickup": "L1", "delivery": "L3"},
+    {"id": "N02", "machine_id": "M02", "pickup": "L2", "delivery": "L5"},
+    {"id": "N03", "machine_id": "M03", "pickup": "L9", "delivery": "L4"},
+    {"id": "N04", "machine_id": "M04", "pickup": "L3", "delivery": "L0"},
+    {"id": "N05", "machine_id": "M05", "pickup": "L0", "delivery": "L8"},
+    {"id": "N06", "machine_id": "M06", "pickup": "L5", "delivery": "L7"},
+    {"id": "N07", "machine_id": "M07", "pickup": "L8", "delivery": "L2"},
+    {"id": "N08", "machine_id": "M08", "pickup": "L4", "delivery": "L9"},
+    {"id": "N09", "machine_id": "M09", "pickup": "L6", "delivery": "L1"},
+    {"id": "N10", "machine_id": "M10", "pickup": "L7", "delivery": "L3"}
+  ]
+}

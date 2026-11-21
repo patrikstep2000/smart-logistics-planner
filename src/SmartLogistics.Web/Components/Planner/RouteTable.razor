@@ -1,0 +1,71 @@
+@* Detalji rute jednog kamiona: redoslijed lokacija, radnje, opterećenje nakon svake radnje. *@
+@using SmartLogistics.Core
+
+<section class="card">
+    <header class="truck-head">
+        <span class="swatch lg" style="background:@Color"></span>
+        <h2>@Route.Truck.Name</h2>
+        <span class="muted">Nosivost @Route.Truck.MaxKg kg · najviše @Route.Truck.MaxItems stroja</span>
+    </header>
+
+    @if (Route.Stops.Count == 0)
+    {
+        <p class="muted">Kamion ne vozi – nema dodijeljenih naloga.</p>
+    }
+    else
+    {
+        <div class="stats">
+            <div><span class="stat-label">Kilometraža</span><span class="stat-value">@Fmt.Km(Route.Km)</span></div>
+            <div><span class="stat-label">Izvršeni nalozi</span><span class="stat-value">@Route.OrdersDone</span></div>
+            <div>
+                <span class="stat-label">Radno vrijeme</span>
+                <span class="stat-value">@Fmt.Clock(Route.Minutes) h</span>
+                <span class="stat-note">limit @Fmt.Clock(MaxShiftMin) h</span>
+            </div>
+            <div><span class="stat-label">Najveći teret</span><span class="stat-value">@Route.Steps.Max(s => s.LoadKg) kg</span></div>
+        </div>
+
+        <div class="table-wrap">
+            <table class="data">
+                <thead>
+                    <tr>
+                        <th class="num">#</th><th>Lokacija</th><th>Radnja</th><th>Nalog</th><th>Stroj</th>
+                        <th class="num">Dionica</th><th class="num">Ukupno</th><th class="num">Teret</th>
+                        <th class="num">Strojeva</th><th>Iskorištenost nosivosti</th><th class="num">Vrijeme</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (int i = 0; i < Route.Steps.Count; i++)
+                    {
+                        var s = Route.Steps[i];
+                        int pct = (int)Math.Round(100.0 * s.LoadKg / Route.Truck.MaxKg);
+                        <tr>
+                            <td class="num muted">@i</td>
+                            <td><strong>@s.LocationId</strong></td>
+                            <td><span class="badge @s.Action.ToString().ToLowerInvariant()">@Fmt.Action(s.Action)</span></td>
+                            <td>@s.OrderId</td>
+                            <td>@s.MachineId</td>
+                            <td class="num">@s.LegKm.ToString("0.0")</td>
+                            <td class="num">@s.TotalKm.ToString("0.0")</td>
+                            <td class="num">@s.LoadKg kg</td>
+                            <td class="num">@s.LoadItems / @Route.Truck.MaxItems</td>
+                            <td>
+                                <div class="bar-cell">
+                                    <div class="bar"><div class="bar-fill" style="width:@(pct)%;background:@Color"></div></div>
+                                    <span class="bar-pct">@pct %</span>
+                                </div>
+                            </td>
+                            <td class="num">@Fmt.Clock(s.ClockMin)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public Route Route { get; set; } = default!;
+    [Parameter, EditorRequired] public string Color { get; set; } = "";
+    [Parameter] public double MaxShiftMin { get; set; }
+}

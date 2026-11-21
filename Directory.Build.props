@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup>
+    <!-- Projekt cilja .NET 10, ali ako na računalu nema .NET 10, pokreće se na novijem (npr. .NET 11). -->
+    <RollForward>Major</RollForward>
+  </PropertyGroup>
+</Project>

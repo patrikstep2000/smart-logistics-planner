@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Google.OrTools" Version="9.15.6755" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Ulazni podaci iz zadatka kopiraju se uz aplikaciju. -->
+    <None Include="..\..\data\default.json" Link="data\default.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

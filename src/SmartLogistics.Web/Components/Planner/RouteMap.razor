@@ -1,0 +1,137 @@
+@* Karta ruta kao SVG: lokacije su točke, rute kamiona su strelice u smjeru vožnje. *@
+@using SmartLogistics.Core
+
+<svg viewBox="0 0 @P(W) @P(H)" class="map" role="img" aria-label="Karta ruta kamiona">
+    <defs>
+        @for (int i = 0; i < Plan.Routes.Count; i++)
+        {
+            <marker id="@(IdPrefix)-arrow-@i" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                <path d="M0,0 L10,5 L0,10 z" fill="@Fmt.TruckColor(i)" />
+            </marker>
+        }
+    </defs>
+
+    @* mreža svakih 5 km *@
+    @foreach (var gx in _gridX)
+    {
+        <g>
+            <line class="grid" x1="@P(PxX(gx))" y1="@P(PadT)" x2="@P(PxX(gx))" y2="@P(H - PadB)" />
+            <text class="axis" x="@P(PxX(gx))" y="@P(H - PadB + 14)" text-anchor="middle">@gx</text>
+        </g>
+    }
+    @foreach (var gy in _gridY)
+    {
+        <g>
+            <line class="grid" x1="@P(PadL)" y1="@P(PxY(gy))" x2="@P(W - PadR)" y2="@P(PxY(gy))" />
+            <text class="axis" x="@P(PadL - 6)" y="@P(PxY(gy) + 4)" text-anchor="end">@gy</text>
+        </g>
+    }
+
+    @foreach (var leg in _legs)
+    {
+        <line x1="@P(leg.X1)" y1="@P(leg.Y1)" x2="@P(leg.X2)" y2="@P(leg.Y2)" stroke="@leg.Color"
+              stroke-width="2.5" stroke-linecap="round" marker-end="url(#@(IdPrefix)-arrow-@leg.Truck)" opacity="0.9" />
+    }
+
+    @foreach (var loc in Problem.Locations.Values)
+    {
+        var x = PxX(loc.X);
+        var y = PxY(loc.Y);
+        var isBase = loc.Id == Problem.Base;
+        <g class="loc">
+            <title>@Tooltip(loc)</title>
+            @if (isBase)
+            {
+                <g>
+                    <rect class="base" x="@P(x - 8)" y="@P(y - 8)" width="16" height="16" rx="3" />
+                    <text class="label" x="@P(x)" y="@P(y + 24)" text-anchor="middle">@loc.Id · @loc.Name</text>
+                </g>
+            }
+            else
+            {
+                <g>
+                    <circle class="node" cx="@P(x)" cy="@P(y)" r="@P(NodeR)" />
+                    <text class="label" x="@P(x)" y="@P(y - 12)" text-anchor="middle">@loc.Id</text>
+                </g>
+            }
+        </g>
+    }
+</svg>
+
+<div class="legend">
+    @for (int i = 0; i < Plan.Routes.Count; i++)
+    {
+        var r = Plan.Routes[i];
+        <span class="legend-item"><span class="swatch" style="background:@Fmt.TruckColor(i)"></span>@r.Truck.Name · @Fmt.Km(r.Km)</span>
+    }
+    <span class="legend-item muted">Prijeđi mišem preko lokacije za radnje na njoj.</span>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public Problem Problem { get; set; } = default!;
+    [Parameter, EditorRequired] public Plan Plan { get; set; } = default!;
+
+    /// <summary>Prefiks za SVG oznake, da se dvije karte na istoj stranici ne sudare.</summary>
+    [Parameter] public string IdPrefix { get; set; } = "map";
+
+    private const double W = 640, PadL = 36, PadR = 18, PadT = 22, PadB = 30, NodeR = 7;
+    private double H, _scale, _minX, _maxY;
+    private List<int> _gridX = [], _gridY = [];
+    private List<(double X1, double Y1, double X2, double Y2, string Color, int Truck)> _legs = [];
+
+    protected override void OnParametersSet()
+    {
+        // Granice karte (uz rub od 2 km) i mjerilo: isti broj piksela po km na obje osi.
+        var locs = Problem.Locations.Values.ToList();
+        _minX = locs.Min(l => l.X) - 2;
+        double maxX = locs.Max(l => l.X) + 2;
+        double minY = locs.Min(l => l.Y) - 2;
+        _maxY = locs.Max(l => l.Y) + 2;
+        _scale = (W - PadL - PadR) / (maxX - _minX);
+        H = PadT + (_maxY - minY) * _scale + PadB;
+
+        _gridX = Steps5(_minX, maxX);
+        _gridY = Steps5(minY, _maxY);
+
+        // Dionice: kraj se skraćuje da strelica ne prekrije točku; kamioni se malo razmaknu bočno.
+        _legs = [];
+        for (int t = 0; t < Plan.Routes.Count; t++)
+        {
+            var steps = Plan.Routes[t].Steps;
+            double offset = (t - (Plan.Routes.Count - 1) / 2.0) * 4;
+            for (int i = 1; i < steps.Count; i++)
+            {
+                var a = Problem.Locations[steps[i - 1].LocationId];
+                var b = Problem.Locations[steps[i].LocationId];
+                double x1 = PxX(a.X), y1 = PxY(a.Y), x2 = PxX(b.X), y2 = PxY(b.Y);
+                double dx = x2 - x1, dy = y2 - y1, len = Math.Sqrt(dx * dx + dy * dy);
+                if (len < 1) continue;
+                double ux = dx / len, uy = dy / len, nx = -uy * offset, ny = ux * offset;
+                _legs.Add((x1 + ux * (NodeR + 2) + nx, y1 + uy * (NodeR + 2) + ny,
+                           x2 - ux * (NodeR + 4) + nx, y2 - uy * (NodeR + 4) + ny, Fmt.TruckColor(t), t));
+            }
+        }
+    }
+
+    private double PxX(double x) => PadL + (x - _minX) * _scale;
+    private double PxY(double y) => PadT + (_maxY - y) * _scale;   // SVG os y raste prema dolje
+
+    /// <summary>SVG atributi moraju koristiti decimalnu točku bez obzira na kulturu.</summary>
+    private static string P(double v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+
+    private static List<int> Steps5(double from, double to)
+    {
+        var list = new List<int>();
+        for (int v = (int)Math.Ceiling(from / 5) * 5; v <= to; v += 5) list.Add(v);
+        return list;
+    }
+
+    private string Tooltip(Location loc)
+    {
+        var lines = new List<string> { $"{loc.Name} ({loc.X:0.#}, {loc.Y:0.#})" };
+        foreach (var r in Plan.Routes)
+            foreach (var s in r.Steps.Where(s => s.LocationId == loc.Id && s.OrderId is not null))
+                lines.Add($"{r.Truck.Name}: {(s.Action == StepAction.Pickup ? "preuzima" : "isporučuje")} {s.MachineId} ({s.OrderId})");
+        return string.Join("\n", lines);
+    }
+}
